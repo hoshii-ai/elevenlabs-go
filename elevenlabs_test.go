@@ -976,7 +976,7 @@ func TestSpeechToText(t *testing.T) {
 			client := elevenlabs.NewClient(context.Background(), mockAPIKey, mockTimeout)
 			client.SetBaseURL(ts.URL)
 
-			resp, err := client.SpeechToText(tc.testRequestBody, tc.queries...)
+			resp, err := client.SpeechToText(tc.testRequestBody, elevenlabs.WithRequestQueries(tc.queries...))
 			if err != nil {
 				t.Fatalf("Got unexpected error: %s", err)
 			}

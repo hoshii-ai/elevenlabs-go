@@ -30,6 +30,25 @@ var (
 // a given or certain value.
 type QueryFunc func(*url.Values)
 
+type RequestOptions struct {
+	ctx     context.Context
+	queries []QueryFunc
+}
+
+type RequestOption func(*RequestOptions)
+
+func WithRequestContext(ctx context.Context) RequestOption {
+	return func(o *RequestOptions) {
+		o.ctx = ctx
+	}
+}
+
+func WithRequestQueries(queries ...QueryFunc) RequestOption {
+	return func(o *RequestOptions) {
+		o.queries = queries
+	}
+}
+
 // Client represents an API client that can be used to make calls to the Elevenlabs API.
 // The NewClient function should be used when instantiating a new Client.
 //
@@ -38,10 +57,10 @@ type QueryFunc func(*url.Values)
 // (which defaults to 30 seconds) can be modified with SetAPIKey and SetTimeout respectively, but the parent
 // context is fixed and is set to context.Background().
 type Client struct {
-	baseURL string
-	apiKey  string
-	timeout time.Duration
-	ctx     context.Context
+	baseURL        string
+	apiKey         string
+	defaultTimeout time.Duration
+	defaultCtx     context.Context
 }
 
 func getDefaultClient() *Client {
@@ -65,7 +84,7 @@ func SetAPIKey(apiKey string) {
 // It can be called if a custom timeout settings are required for API calls.
 // The function takes a time.Duration argument which is the timeout to be set.
 func SetTimeout(timeout time.Duration) {
-	getDefaultClient().timeout = timeout
+	getDefaultClient().defaultTimeout = timeout
 }
 
 // NewClient creates and returns a new Client object with provided settings.
@@ -78,7 +97,7 @@ func SetTimeout(timeout time.Duration) {
 //
 // It returns a pointer to a newly created Client.
 func NewClient(ctx context.Context, apiKey string, reqTimeout time.Duration) *Client {
-	return &Client{baseURL: elevenlabsBaseURL, apiKey: apiKey, timeout: reqTimeout, ctx: ctx}
+	return &Client{baseURL: elevenlabsBaseURL, apiKey: apiKey, defaultTimeout: reqTimeout, defaultCtx: ctx}
 }
 
 // SetBaseURL sets the base URL for the client. This is primarily used for testing.
@@ -87,9 +106,13 @@ func (c *Client) SetBaseURL(baseURL string) {
 }
 
 func (c *Client) doRequest(ctx context.Context, RespBodyWriter io.Writer, method, url string, bodyBuf io.Reader, contentType string, queries ...QueryFunc) error {
-	timeoutCtx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(timeoutCtx, method, url, bodyBuf)
+	if ctx == c.defaultCtx {
+		ctx_, cancel := context.WithTimeout(ctx, c.defaultTimeout)
+		ctx = ctx_
+		defer cancel()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, bodyBuf)
 	if err != nil {
 		return err
 	}
@@ -218,7 +241,7 @@ func (c *Client) TextToSpeech(voiceID string, ttsReq TextToSpeechRequest, querie
 		return nil, err
 	}
 	b := bytes.Buffer{}
-	err = c.doRequest(c.ctx, &b, http.MethodPost, fmt.Sprintf("%s/text-to-speech/%s", c.baseURL, voiceID), bytes.NewBuffer(reqBody), contentTypeJSON, queries...)
+	err = c.doRequest(c.defaultCtx, &b, http.MethodPost, fmt.Sprintf("%s/text-to-speech/%s", c.baseURL, voiceID), bytes.NewBuffer(reqBody), contentTypeJSON, queries...)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +264,7 @@ func (c *Client) TextToSpeechStream(streamWriter io.Writer, voiceID string, ttsR
 		return err
 	}
 
-	return c.doRequest(c.ctx, streamWriter, http.MethodPost, fmt.Sprintf("%s/text-to-speech/%s/stream", c.baseURL, voiceID), bytes.NewBuffer(reqBody), contentTypeJSON, queries...)
+	return c.doRequest(c.defaultCtx, streamWriter, http.MethodPost, fmt.Sprintf("%s/text-to-speech/%s/stream", c.baseURL, voiceID), bytes.NewBuffer(reqBody), contentTypeJSON, queries...)
 }
 
 // GetModels retrieves the list of all available models.
@@ -249,7 +272,7 @@ func (c *Client) TextToSpeechStream(streamWriter io.Writer, voiceID string, ttsR
 // It returns a slice of Model objects or an error.
 func (c *Client) GetModels() ([]Model, error) {
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/models", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/models", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +290,7 @@ func (c *Client) GetModels() ([]Model, error) {
 // It returns a slice of Voice objects or an error.
 func (c *Client) GetVoices() ([]Voice, error) {
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/voices", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/voices", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +309,7 @@ func (c *Client) GetVoices() ([]Voice, error) {
 func (c *Client) GetDefaultVoiceSettings() (VoiceSettings, error) {
 	var voiceSettings VoiceSettings
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/voices/settings/default", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/voices/settings/default", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
 	if err != nil {
 		return VoiceSettings{}, err
 	}
@@ -306,7 +329,7 @@ func (c *Client) GetDefaultVoiceSettings() (VoiceSettings, error) {
 func (c *Client) GetVoiceSettings(voiceId string) (VoiceSettings, error) {
 	var voiceSettings VoiceSettings
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/voices/%s/settings", c.baseURL, voiceId), &bytes.Buffer{}, contentTypeJSON)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/voices/%s/settings", c.baseURL, voiceId), &bytes.Buffer{}, contentTypeJSON)
 	if err != nil {
 		return VoiceSettings{}, err
 	}
@@ -328,7 +351,7 @@ func (c *Client) GetVoiceSettings(voiceId string) (VoiceSettings, error) {
 func (c *Client) GetVoice(voiceId string, queries ...QueryFunc) (Voice, error) {
 	var voice Voice
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/voices/%s", c.baseURL, voiceId), &bytes.Buffer{}, contentTypeJSON, queries...)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/voices/%s", c.baseURL, voiceId), &bytes.Buffer{}, contentTypeJSON, queries...)
 	if err != nil {
 		return Voice{}, err
 	}
@@ -346,7 +369,7 @@ func (c *Client) GetVoice(voiceId string, queries ...QueryFunc) (Voice, error) {
 //
 // It returns a nil if successful, or an error.
 func (c *Client) DeleteVoice(voiceId string) error {
-	return c.doRequest(c.ctx, &bytes.Buffer{}, http.MethodDelete, fmt.Sprintf("%s/voices/%s", c.baseURL, voiceId), &bytes.Buffer{}, contentTypeJSON)
+	return c.doRequest(c.defaultCtx, &bytes.Buffer{}, http.MethodDelete, fmt.Sprintf("%s/voices/%s", c.baseURL, voiceId), &bytes.Buffer{}, contentTypeJSON)
 }
 
 // EditVoiceSettings updates the settings for a specific voice.
@@ -361,7 +384,7 @@ func (c *Client) EditVoiceSettings(voiceId string, settings VoiceSettings) error
 		return err
 	}
 
-	return c.doRequest(c.ctx, &bytes.Buffer{}, http.MethodPost, fmt.Sprintf("%s/voices/%s/settings/edit", c.baseURL, voiceId), bytes.NewBuffer(reqBody), contentTypeJSON)
+	return c.doRequest(c.defaultCtx, &bytes.Buffer{}, http.MethodPost, fmt.Sprintf("%s/voices/%s/settings/edit", c.baseURL, voiceId), bytes.NewBuffer(reqBody), contentTypeJSON)
 }
 
 // AddVoice adds a new voice to the user's VoiceLab.
@@ -375,7 +398,7 @@ func (c *Client) AddVoice(voiceReq AddEditVoiceRequest) (string, error) {
 		return "", err
 	}
 	b := bytes.Buffer{}
-	err = c.doRequest(c.ctx, &b, http.MethodPost, fmt.Sprintf("%s/voices/add", c.baseURL), reqBodyBuf, contentType)
+	err = c.doRequest(c.defaultCtx, &b, http.MethodPost, fmt.Sprintf("%s/voices/add", c.baseURL), reqBodyBuf, contentType)
 	if err != nil {
 		return "", err
 	}
@@ -397,7 +420,7 @@ func (c *Client) EditVoice(voiceId string, voiceReq AddEditVoiceRequest) error {
 	if err != nil {
 		return err
 	}
-	return c.doRequest(c.ctx, &bytes.Buffer{}, http.MethodPost, fmt.Sprintf("%s/voices/%s/edit", c.baseURL, voiceId), reqBodyBuf, contentType)
+	return c.doRequest(c.defaultCtx, &bytes.Buffer{}, http.MethodPost, fmt.Sprintf("%s/voices/%s/edit", c.baseURL, voiceId), reqBodyBuf, contentType)
 }
 
 // DeleteSample deletes a sample associated with a specific voice.
@@ -407,7 +430,7 @@ func (c *Client) EditVoice(voiceId string, voiceReq AddEditVoiceRequest) error {
 //
 // It returns nil if successful or an error otherwise.
 func (c *Client) DeleteSample(voiceId, sampleId string) error {
-	return c.doRequest(c.ctx, &bytes.Buffer{}, http.MethodDelete, fmt.Sprintf("%s/voices/%s/samples/%s", c.baseURL, voiceId, sampleId), &bytes.Buffer{}, contentTypeJSON)
+	return c.doRequest(c.defaultCtx, &bytes.Buffer{}, http.MethodDelete, fmt.Sprintf("%s/voices/%s/samples/%s", c.baseURL, voiceId, sampleId), &bytes.Buffer{}, contentTypeJSON)
 }
 
 // GetSampleAudio retrieves the audio data for a specific sample associated with a voice.
@@ -417,7 +440,7 @@ func (c *Client) DeleteSample(voiceId, sampleId string) error {
 // It returns a byte slice containing the audio data in case of success or an error.
 func (c *Client) GetSampleAudio(voiceId, sampleId string) ([]byte, error) {
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/voices/%s/samples/%s/audio", c.baseURL, voiceId, sampleId), &bytes.Buffer{}, contentTypeJSON)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/voices/%s/samples/%s/audio", c.baseURL, voiceId, sampleId), &bytes.Buffer{}, contentTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -444,7 +467,7 @@ type NextHistoryPageFunc func(...QueryFunc) (GetHistoryResponse, NextHistoryPage
 func (c *Client) GetHistory(queries ...QueryFunc) (GetHistoryResponse, NextHistoryPageFunc, error) {
 	var historyResp GetHistoryResponse
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/history", c.baseURL), &bytes.Buffer{}, contentTypeJSON, queries...)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/history", c.baseURL), &bytes.Buffer{}, contentTypeJSON, queries...)
 	if err != nil {
 		return GetHistoryResponse{}, nil, err
 	}
@@ -473,7 +496,7 @@ func (c *Client) GetHistory(queries ...QueryFunc) (GetHistoryResponse, NextHisto
 func (c *Client) GetHistoryItem(itemId string) (HistoryItem, error) {
 	var historyItem HistoryItem
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/history/%s", c.baseURL, itemId), &bytes.Buffer{}, contentTypeJSON)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/history/%s", c.baseURL, itemId), &bytes.Buffer{}, contentTypeJSON)
 	if err != nil {
 		return HistoryItem{}, err
 	}
@@ -491,7 +514,7 @@ func (c *Client) GetHistoryItem(itemId string) (HistoryItem, error) {
 //
 // It returns nil if successful or an error otherwise.
 func (c *Client) DeleteHistoryItem(itemId string) error {
-	return c.doRequest(c.ctx, &bytes.Buffer{}, http.MethodDelete, fmt.Sprintf("%s/history/%s", c.baseURL, itemId), &bytes.Buffer{}, contentTypeJSON)
+	return c.doRequest(c.defaultCtx, &bytes.Buffer{}, http.MethodDelete, fmt.Sprintf("%s/history/%s", c.baseURL, itemId), &bytes.Buffer{}, contentTypeJSON)
 }
 
 // GetHistoryItemAudio retrieves the audio data for a specific history item by its ID.
@@ -502,7 +525,7 @@ func (c *Client) DeleteHistoryItem(itemId string) error {
 // It returns a byte slice containing the audio data or an error.
 func (c *Client) GetHistoryItemAudio(itemId string) ([]byte, error) {
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/history/%s/audio", c.baseURL, itemId), &bytes.Buffer{}, contentTypeJSON)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/history/%s/audio", c.baseURL, itemId), &bytes.Buffer{}, contentTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -523,7 +546,7 @@ func (c *Client) DownloadHistoryAudio(dlReq DownloadHistoryRequest) ([]byte, err
 	}
 
 	b := bytes.Buffer{}
-	err = c.doRequest(c.ctx, &b, http.MethodPost, fmt.Sprintf("%s/history/download", c.baseURL), bytes.NewBuffer(reqBody), contentTypeJSON)
+	err = c.doRequest(c.defaultCtx, &b, http.MethodPost, fmt.Sprintf("%s/history/download", c.baseURL), bytes.NewBuffer(reqBody), contentTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -536,7 +559,7 @@ func (c *Client) DownloadHistoryAudio(dlReq DownloadHistoryRequest) ([]byte, err
 func (c *Client) GetSubscription() (Subscription, error) {
 	sub := Subscription{}
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/user/subscription", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/user/subscription", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
 	if err != nil {
 		return sub, err
 	}
@@ -557,7 +580,7 @@ func (c *Client) GetSubscription() (Subscription, error) {
 func (c *Client) GetUser() (User, error) {
 	user := User{}
 	b := bytes.Buffer{}
-	err := c.doRequest(c.ctx, &b, http.MethodGet, fmt.Sprintf("%s/user", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
+	err := c.doRequest(c.defaultCtx, &b, http.MethodGet, fmt.Sprintf("%s/user", c.baseURL), &bytes.Buffer{}, contentTypeJSON)
 	if err != nil {
 		return user, err
 	}
@@ -594,14 +617,30 @@ func EnableLogging(value bool) QueryFunc {
 // It returns the transcription response as an interface{} (which will be either SpeechToTextResponse,
 // MultichannelSpeechToTextResponse, or SpeechToTextWebhookResponse depending on the request parameters),
 // or an error.
-func (c *Client) SpeechToText(req SpeechToTextRequest, queries ...QueryFunc) (interface{}, error) {
+func (c *Client) SpeechToText(req SpeechToTextRequest, opts ...RequestOption) (interface{}, error) {
+	options := RequestOptions{
+		ctx:     c.defaultCtx,
+		queries: []QueryFunc{},
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	reqBodyBuf, contentType, err := req.buildRequestBody()
 	if err != nil {
 		return nil, err
 	}
 
 	b := bytes.Buffer{}
-	err = c.doRequest(c.ctx, &b, http.MethodPost, fmt.Sprintf("%s/speech-to-text", c.baseURL), reqBodyBuf, contentType, queries...)
+	err = c.doRequest(
+		options.ctx,
+		&b,
+		http.MethodPost,
+		fmt.Sprintf("%s/speech-to-text", c.baseURL),
+		reqBodyBuf,
+		contentType,
+		options.queries...,
+	)
 	if err != nil {
 		return nil, err
 	}

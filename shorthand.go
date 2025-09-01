@@ -5,6 +5,11 @@ package elevenlabs
 
 import "io"
 
+// SetBaseURL calls the SetBaseURL method on the default client.
+func SetBaseURL(baseURL string) {
+	getDefaultClient().SetBaseURL(baseURL)
+}
+
 // TextToSpeech calls the TextToSpeech method on the default client.
 func TextToSpeech(voiceID string, ttsReq TextToSpeechRequest, queries ...QueryFunc) ([]byte, error) {
 	return getDefaultClient().TextToSpeech(voiceID, ttsReq, queries...)
@@ -106,6 +111,6 @@ func GetUser() (User, error) {
 }
 
 // SpeechToText calls the SpeechToText method on the default client.
-func SpeechToText(req SpeechToTextRequest, queries ...QueryFunc) (interface{}, error) {
-	return getDefaultClient().SpeechToText(req, queries...)
+func SpeechToText(req SpeechToTextRequest, opts ...RequestOption) (interface{}, error) {
+	return getDefaultClient().SpeechToText(req, opts...)
 }
