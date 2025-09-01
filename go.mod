@@ -1,3 +1,3 @@
-module github.com/ntauth/elevenlabs-go
+module github.com/hoshii-ai/elevenlabs-go
 
 go 1.18

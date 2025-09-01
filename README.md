@@ -2,24 +2,24 @@
 
 ![Go version](https://img.shields.io/badge/go-1.18-blue)
 ![License](https://img.shields.io/github/license/haguro/elevenlabs-go)
-![Tests](https://github.com/ntauth/elevenlabs-go/actions/workflows/tests.yml/badge.svg?branch=main&event=push)
+![Tests](https://github.com/hoshii-ai/elevenlabs-go/actions/workflows/tests.yml/badge.svg?branch=main&event=push)
 [![codecov](https://codecov.io/gh/haguro/elevenlabs-go/branch/main/graph/badge.svg?token=UM33DSSTAG)](https://codecov.io/gh/haguro/elevenlabs-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ntauth/elevenlabs-go)](https://goreportcard.com/report/github.com/ntauth/elevenlabs-go)
-[![Go Reference](https://pkg.go.dev/badge/github.com/ntauth/elevenlabs-go.svg)](https://pkg.go.dev/github.com/ntauth/elevenlabs-go#section-documentation)
+[![Go Report Card](https://goreportcard.com/badge/github.com/hoshii-ai/elevenlabs-go)](https://goreportcard.com/report/github.com/hoshii-ai/elevenlabs-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/hoshii-ai/elevenlabs-go.svg)](https://pkg.go.dev/github.com/hoshii-ai/elevenlabs-go#section-documentation)
 
 This is a Go client library for the [ElevenLabs](https://elevenlabs.io/) voice cloning and speech synthesis platform. It provides a basic interface for Go programs to interact with the ElevenLabs [API](https://docs.elevenlabs.io/api-reference).
 
 ## Installation
 
 ```bash
-go get github.com/ntauth/elevenlabs-go
+go get github.com/hoshii-ai/elevenlabs-go
 ```
 
 ## Example Usage
 
 Make sure to replace `"your-api-key"` in all examples with your actual API key. Refer to the official Elevenlabs [API documentation](https://docs.elevenlabs.io/api-reference/quick-start/introduction) for further details.
 
-Full documentation of this library is available [here](https://pkg.go.dev/github.com/ntauth/elevenlabs-go).
+Full documentation of this library is available [here](https://pkg.go.dev/github.com/hoshii-ai/elevenlabs-go).
 
 ### Using a New Client Instance
 
@@ -34,7 +34,7 @@ import (
  "os"
  "time"
 
- "github.com/ntauth/elevenlabs-go"
+ "github.com/hoshii-ai/elevenlabs-go"
 )
 
 func main() {
@@ -74,7 +74,7 @@ import (
  "os"
  "time"
 
- el "github.com/ntauth/elevenlabs-go"
+ el "github.com/hoshii-ai/elevenlabs-go"
 )
 
 func main() {
@@ -115,7 +115,7 @@ import (
  "os/exec"
  "time"
 
- "github.com/ntauth/elevenlabs-go"
+ "github.com/hoshii-ai/elevenlabs-go"
 )
 
 func main() {

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ntauth/elevenlabs-go"
+	"github.com/hoshii-ai/elevenlabs-go"
 )
 
 const (
