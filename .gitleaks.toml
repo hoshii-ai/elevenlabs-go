@@ -1,0 +1,60 @@
+# GitLeaks configuration for ElevenLabs Go SDK
+
+title = "ElevenLabs Go SDK Secret Detection"
+
+[extend]
+# Use the default gitleaks config as base
+useDefault = true
+
+[[rules]]
+id = "elevenlabs-api-key"
+description = "ElevenLabs API Key"
+regex = '''sk_[a-f0-9]{64}'''
+tags = ["key", "elevenlabs"]
+
+[[rules]]
+id = "elevenlabs-api-key-env"
+description = "ElevenLabs API Key in environment variable"
+regex = '''(?i)(elevenlabs?_api_key|xi_api_key)\s*[:=]\s*["\']?sk_[a-f0-9]{64}["\']?'''
+tags = ["key", "elevenlabs", "env"]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key Pattern"
+regex = '''(?i)api[_-]?key\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{20,}["\']?'''
+tags = ["key", "api"]
+
+[[rules]]
+id = "auth-token"
+description = "Authorization Token"
+regex = '''(?i)(auth|bearer|token)\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{20,}["\']?'''
+tags = ["token", "auth"]
+
+# Allowlist certain patterns that are safe
+[[allowlist]]
+description = "Test API keys and placeholders"
+regexes = [
+    '''your-api-key''',
+    '''MockAPIKey''',
+    '''TestAPIKey''',
+    '''sk_test_''',
+    '''example\.com''',
+    '''localhost''',
+    '''127\.0\.0\.1''',
+]
+
+[[allowlist]]
+description = "Go test files with mock data"
+paths = [
+    '''.*_test\.go''',
+    '''testdata/.*''',
+    '''examples?/.*''',
+]
+
+[[allowlist]]
+description = "Documentation and example files"
+paths = [
+    '''README\.md''',
+    '''.*\.md''',
+    '''docs/.*''',
+]

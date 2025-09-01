@@ -273,3 +273,196 @@ func (r *AddEditVoiceRequest) buildRequestBody() (*bytes.Buffer, string, error) 
 
 	return &b, w.FormDataContentType(), nil
 }
+
+// SpeechToTextRequest represents the request parameters for speech-to-text conversion
+type SpeechToTextRequest struct {
+	ModelID               string               `json:"model_id"`
+	File                  io.Reader            `json:"-"` // File content, handled separately in multipart
+	FileName              string               `json:"-"` // Original filename for multipart
+	LanguageCode          *string              `json:"language_code,omitempty"`
+	TagAudioEvents        *bool                `json:"tag_audio_events,omitempty"`
+	NumSpeakers           *int                 `json:"num_speakers,omitempty"`
+	TimestampsGranularity *string              `json:"timestamps_granularity,omitempty"`
+	Diarize               *bool                `json:"diarize,omitempty"`
+	DiarizationThreshold  *float64             `json:"diarization_threshold,omitempty"`
+	AdditionalFormats     []SpeechToTextFormat `json:"additional_formats,omitempty"`
+	FileFormat            *string              `json:"file_format,omitempty"`
+	CloudStorageURL       *string              `json:"cloud_storage_url,omitempty"`
+	Webhook               *bool                `json:"webhook,omitempty"`
+	WebhookID             *string              `json:"webhook_id,omitempty"`
+	Temperature           *float64             `json:"temperature,omitempty"`
+	Seed                  *int                 `json:"seed,omitempty"`
+	UseMultiChannel       *bool                `json:"use_multi_channel,omitempty"`
+	WebhookMetadata       interface{}          `json:"webhook_metadata,omitempty"`
+}
+
+// SpeechToTextFormat represents additional export formats for speech-to-text
+type SpeechToTextFormat struct {
+	Type                  string  `json:"type"`
+	TimestampsGranularity *string `json:"timestamps_granularity,omitempty"`
+	Diarize               *bool   `json:"diarize,omitempty"`
+	MaxSpeakers           *int    `json:"max_speakers,omitempty"`
+	MaxWords              *int    `json:"max_words,omitempty"`
+	PunctuateOnly         *bool   `json:"punctuate_only,omitempty"`
+}
+
+// SpeechToTextWord represents a word in the transcription with timing and speaker information
+type SpeechToTextWord struct {
+	Text         string   `json:"text"`
+	Start        float64  `json:"start"`
+	End          float64  `json:"end"`
+	Type         string   `json:"type"`
+	SpeakerID    *string  `json:"speaker_id,omitempty"`
+	ChannelIndex *int     `json:"channel_index,omitempty"`
+	LogProb      *float64 `json:"logprob,omitempty"`
+}
+
+// SpeechToTextResponse represents the response from speech-to-text conversion
+type SpeechToTextResponse struct {
+	LanguageCode        string             `json:"language_code"`
+	LanguageProbability float64            `json:"language_probability"`
+	Text                string             `json:"text"`
+	Words               []SpeechToTextWord `json:"words"`
+}
+
+// MultichannelSpeechToTextResponse represents the response for multi-channel audio
+type MultichannelSpeechToTextResponse struct {
+	Transcripts []SpeechToTextResponse `json:"transcripts"`
+}
+
+// SpeechToTextWebhookResponse represents the response when webhook is enabled
+type SpeechToTextWebhookResponse struct {
+	RequestID string `json:"request_id"`
+	Message   string `json:"message"`
+}
+
+// buildRequestBody creates the multipart form request body for speech-to-text
+func (r *SpeechToTextRequest) buildRequestBody() (*bytes.Buffer, string, error) {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+	buildFailed := func(err error) (*bytes.Buffer, string, error) {
+		return nil, "", fmt.Errorf("failed to build speech-to-text request body: %w", err)
+	}
+
+	// Add model_id
+	if err := w.WriteField("model_id", r.ModelID); err != nil {
+		return buildFailed(err)
+	}
+
+	// Add file if provided
+	if r.File != nil && r.FileName != "" {
+		fw, err := w.CreateFormFile("file", r.FileName)
+		if err != nil {
+			return buildFailed(err)
+		}
+		if _, err = io.Copy(fw, r.File); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	// Add optional fields
+	if r.LanguageCode != nil {
+		if err := w.WriteField("language_code", *r.LanguageCode); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.TagAudioEvents != nil {
+		if err := w.WriteField("tag_audio_events", fmt.Sprintf("%t", *r.TagAudioEvents)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.NumSpeakers != nil {
+		if err := w.WriteField("num_speakers", fmt.Sprintf("%d", *r.NumSpeakers)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.TimestampsGranularity != nil {
+		if err := w.WriteField("timestamps_granularity", *r.TimestampsGranularity); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.Diarize != nil {
+		if err := w.WriteField("diarize", fmt.Sprintf("%t", *r.Diarize)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.DiarizationThreshold != nil {
+		if err := w.WriteField("diarization_threshold", fmt.Sprintf("%f", *r.DiarizationThreshold)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if len(r.AdditionalFormats) > 0 {
+		formatsJSON, err := json.Marshal(r.AdditionalFormats)
+		if err != nil {
+			return buildFailed(err)
+		}
+		if err := w.WriteField("additional_formats", string(formatsJSON)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.FileFormat != nil {
+		if err := w.WriteField("file_format", *r.FileFormat); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.CloudStorageURL != nil {
+		if err := w.WriteField("cloud_storage_url", *r.CloudStorageURL); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.Webhook != nil {
+		if err := w.WriteField("webhook", fmt.Sprintf("%t", *r.Webhook)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.WebhookID != nil {
+		if err := w.WriteField("webhook_id", *r.WebhookID); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.Temperature != nil {
+		if err := w.WriteField("temperature", fmt.Sprintf("%f", *r.Temperature)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.Seed != nil {
+		if err := w.WriteField("seed", fmt.Sprintf("%d", *r.Seed)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.UseMultiChannel != nil {
+		if err := w.WriteField("use_multi_channel", fmt.Sprintf("%t", *r.UseMultiChannel)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	if r.WebhookMetadata != nil {
+		metadataJSON, err := json.Marshal(r.WebhookMetadata)
+		if err != nil {
+			return buildFailed(err)
+		}
+		if err := w.WriteField("webhook_metadata", string(metadataJSON)); err != nil {
+			return buildFailed(err)
+		}
+	}
+
+	err := w.Close()
+	if err != nil {
+		return buildFailed(err)
+	}
+
+	return &b, w.FormDataContentType(), nil
+}

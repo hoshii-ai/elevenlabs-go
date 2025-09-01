@@ -81,6 +81,11 @@ func NewClient(ctx context.Context, apiKey string, reqTimeout time.Duration) *Cl
 	return &Client{baseURL: elevenlabsBaseURL, apiKey: apiKey, timeout: reqTimeout, ctx: ctx}
 }
 
+// SetBaseURL sets the base URL for the client. This is primarily used for testing.
+func (c *Client) SetBaseURL(baseURL string) {
+	c.baseURL = baseURL
+}
+
 func (c *Client) doRequest(ctx context.Context, RespBodyWriter io.Writer, method, url string, bodyBuf io.Reader, contentType string, queries ...QueryFunc) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -562,4 +567,70 @@ func (c *Client) GetUser() (User, error) {
 	}
 
 	return user, nil
+}
+
+// EnableLogging returns a QueryFunc that sets the http query 'enable_logging' to
+// a certain value. It is meant to be used with SpeechToText to control logging behavior.
+//
+// When enable_logging is set to false, zero retention mode will be used for the request.
+// This will mean history features are unavailable for this request, including request stitching.
+// Zero retention mode may only be used by enterprise customers.
+func EnableLogging(value bool) QueryFunc {
+	return func(q *url.Values) {
+		q.Add("enable_logging", fmt.Sprintf("%t", value))
+	}
+}
+
+// SpeechToText converts audio or video to text using ElevenLabs speech-to-text API.
+//
+// It takes a SpeechToTextRequest argument that contains the audio file and conversion settings,
+// and an optional list of QueryFunc 'queries' to modify the request. The QueryFunc relevant for this
+// function is EnableLogging.
+//
+// The function supports both file-based and cloud storage URL-based transcription.
+// For multi-channel audio, when UseMultiChannel is true, it returns a MultichannelSpeechToTextResponse,
+// otherwise it returns a SpeechToTextResponse.
+//
+// It returns the transcription response as an interface{} (which will be either SpeechToTextResponse,
+// MultichannelSpeechToTextResponse, or SpeechToTextWebhookResponse depending on the request parameters),
+// or an error.
+func (c *Client) SpeechToText(req SpeechToTextRequest, queries ...QueryFunc) (interface{}, error) {
+	reqBodyBuf, contentType, err := req.buildRequestBody()
+	if err != nil {
+		return nil, err
+	}
+
+	b := bytes.Buffer{}
+	err = c.doRequest(c.ctx, &b, http.MethodPost, fmt.Sprintf("%s/speech-to-text", c.baseURL), reqBodyBuf, contentType, queries...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse response based on request type
+	respData := b.Bytes()
+
+	// Check if it's a webhook response first (typically shorter)
+	if req.Webhook != nil && *req.Webhook {
+		var webhookResp SpeechToTextWebhookResponse
+		if err := json.Unmarshal(respData, &webhookResp); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal webhook response: %w", err)
+		}
+		return webhookResp, nil
+	}
+
+	// Check if it's a multi-channel response
+	if req.UseMultiChannel != nil && *req.UseMultiChannel {
+		var multiResp MultichannelSpeechToTextResponse
+		if err := json.Unmarshal(respData, &multiResp); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal multi-channel response: %w", err)
+		}
+		return multiResp, nil
+	}
+
+	// Default to single-channel response
+	var singleResp SpeechToTextResponse
+	if err := json.Unmarshal(respData, &singleResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal single-channel response: %w", err)
+	}
+	return singleResp, nil
 }

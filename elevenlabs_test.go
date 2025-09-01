@@ -5,14 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/haguro/elevenlabs-go"
+	"github.com/ntauth/elevenlabs-go"
 )
 
 const (
@@ -851,5 +853,163 @@ func TestGetUser(t *testing.T) {
 	}
 	if !reflect.DeepEqual(expUser, user) {
 		t.Errorf("Unexpected User in response: %+v", user)
+	}
+}
+
+func Test_SpeechToText_Reader(t *testing.T) {
+	// Set your API key for the default client
+	elevenlabs.SetAPIKey("your-api-key")
+
+	// Open an audio file
+	audioFile, err := os.Open("test.wav")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer audioFile.Close()
+
+	// Create a simple SpeechToTextRequest
+	sttReq := elevenlabs.SpeechToTextRequest{
+		ModelID:  "scribe_v1",
+		File:     audioFile,
+		FileName: "test.wav",
+	}
+
+	// Call the shorthand SpeechToText function
+	result, err := elevenlabs.SpeechToText(sttReq)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Handle the response
+	if resp, ok := result.(elevenlabs.SpeechToTextResponse); ok {
+		log.Printf("Transcription: %s", resp.Text)
+	}
+}
+
+func TestSpeechToText(t *testing.T) {
+	testCases := []struct {
+		name               string
+		excludeAPIKey      bool
+		queries            []elevenlabs.QueryFunc
+		expQueryString     string
+		testRequestBody    elevenlabs.SpeechToTextRequest
+		expResponseBody    []byte
+		expectedRespStatus int
+		expectMultichannel bool
+		expectWebhook      bool
+	}{
+		{
+			name:          "Basic speech-to-text with file",
+			excludeAPIKey: false,
+			testRequestBody: elevenlabs.SpeechToTextRequest{
+				ModelID:  "scribe_v1",
+				File:     strings.NewReader("fake audio data"),
+				FileName: "test.wav",
+			},
+			expResponseBody:    testRespBodies["TestSpeechToText"],
+			expectedRespStatus: http.StatusOK,
+		},
+		{
+			name:           "Speech-to-text with enable logging query",
+			excludeAPIKey:  false,
+			queries:        []elevenlabs.QueryFunc{elevenlabs.EnableLogging(false)},
+			expQueryString: "enable_logging=false",
+			testRequestBody: elevenlabs.SpeechToTextRequest{
+				ModelID:  "scribe_v1",
+				File:     strings.NewReader("fake audio data"),
+				FileName: "test.mp3",
+			},
+			expResponseBody:    testRespBodies["TestSpeechToText"],
+			expectedRespStatus: http.StatusOK,
+		},
+		{
+			name:          "Multi-channel speech-to-text",
+			excludeAPIKey: false,
+			testRequestBody: elevenlabs.SpeechToTextRequest{
+				ModelID:         "scribe_v1",
+				File:            strings.NewReader("fake audio data"),
+				FileName:        "test.mp3",
+				UseMultiChannel: &[]bool{true}[0],
+			},
+			expResponseBody:    testRespBodies["TestSpeechToTextMultichannel"],
+			expectedRespStatus: http.StatusOK,
+			expectMultichannel: true,
+		},
+		{
+			name:          "Speech-to-text with webhook",
+			excludeAPIKey: false,
+			testRequestBody: elevenlabs.SpeechToTextRequest{
+				ModelID:  "scribe_v1",
+				File:     strings.NewReader("fake audio data"),
+				FileName: "test.mp3",
+				Webhook:  &[]bool{true}[0],
+			},
+			expResponseBody:    testRespBodies["TestSpeechToTextWebhook"],
+			expectedRespStatus: http.StatusOK,
+			expectWebhook:      true,
+		},
+		{
+			name:          "Speech-to-text with cloud storage URL",
+			excludeAPIKey: false,
+			testRequestBody: elevenlabs.SpeechToTextRequest{
+				ModelID:         "scribe_v1",
+				CloudStorageURL: &[]string{"https://example.com/audio.mp3"}[0],
+			},
+			expResponseBody:    testRespBodies["TestSpeechToText"],
+			expectedRespStatus: http.StatusOK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := testServer(t, testServerConfig{
+				keyOptional:         tc.excludeAPIKey,
+				expectedMethod:      http.MethodPost,
+				expectedContentType: contentMultipart,
+				expectedAccept:      "*/*",
+				expectedQueryStr:    tc.expQueryString,
+				statusCode:          tc.expectedRespStatus,
+				responseBody:        tc.expResponseBody,
+			})
+			defer ts.Close()
+
+			client := elevenlabs.NewClient(context.Background(), mockAPIKey, mockTimeout)
+			client.SetBaseURL(ts.URL)
+
+			resp, err := client.SpeechToText(tc.testRequestBody, tc.queries...)
+			if err != nil {
+				t.Fatalf("Got unexpected error: %s", err)
+			}
+
+			// Verify response type based on request
+			if tc.expectWebhook {
+				webhookResp, ok := resp.(elevenlabs.SpeechToTextWebhookResponse)
+				if !ok {
+					t.Fatalf("Expected SpeechToTextWebhookResponse, got %T", resp)
+				}
+				if webhookResp.RequestID == "" {
+					t.Error("Expected non-empty request ID in webhook response")
+				}
+			} else if tc.expectMultichannel {
+				multiResp, ok := resp.(elevenlabs.MultichannelSpeechToTextResponse)
+				if !ok {
+					t.Fatalf("Expected MultichannelSpeechToTextResponse, got %T", resp)
+				}
+				if len(multiResp.Transcripts) == 0 {
+					t.Error("Expected at least one transcript in multichannel response")
+				}
+			} else {
+				singleResp, ok := resp.(elevenlabs.SpeechToTextResponse)
+				if !ok {
+					t.Fatalf("Expected SpeechToTextResponse, got %T", resp)
+				}
+				if singleResp.Text == "" {
+					t.Error("Expected non-empty text in response")
+				}
+				if len(singleResp.Words) == 0 {
+					t.Error("Expected at least one word in response")
+				}
+			}
+		})
 	}
 }

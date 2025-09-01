@@ -104,3 +104,8 @@ func GetSubscription() (Subscription, error) {
 func GetUser() (User, error) {
 	return getDefaultClient().GetUser()
 }
+
+// SpeechToText calls the SpeechToText method on the default client.
+func SpeechToText(req SpeechToTextRequest, queries ...QueryFunc) (interface{}, error) {
+	return getDefaultClient().SpeechToText(req, queries...)
+}

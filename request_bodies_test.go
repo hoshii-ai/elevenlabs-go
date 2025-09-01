@@ -359,4 +359,117 @@ var testRespBodies = map[string][]byte{
   "xi_api_key": "string",
   "can_use_delayed_payment_methods": true
 }`),
+
+	"TestSpeechToText": []byte(`{
+  "language_code": "en",
+  "language_probability": 0.98,
+  "text": "Hello world! This is a test transcription.",
+  "words": [
+    {
+      "text": "Hello",
+      "start": 0.0,
+      "end": 0.5,
+      "type": "word",
+      "speaker_id": "speaker_1",
+      "logprob": -0.124
+    },
+    {
+      "text": "world!",
+      "start": 0.5,
+      "end": 1.0,
+      "type": "word",
+      "speaker_id": "speaker_1",
+      "logprob": -0.086
+    },
+    {
+      "text": "This",
+      "start": 1.2,
+      "end": 1.4,
+      "type": "word",
+      "speaker_id": "speaker_1",
+      "logprob": -0.054
+    },
+    {
+      "text": "is",
+      "start": 1.4,
+      "end": 1.5,
+      "type": "word",
+      "speaker_id": "speaker_1",
+      "logprob": -0.032
+    },
+    {
+      "text": "a",
+      "start": 1.5,
+      "end": 1.6,
+      "type": "word",
+      "speaker_id": "speaker_1",
+      "logprob": -0.021
+    },
+    {
+      "text": "test",
+      "start": 1.6,
+      "end": 1.9,
+      "type": "word",
+      "speaker_id": "speaker_1",
+      "logprob": -0.098
+    },
+    {
+      "text": "transcription.",
+      "start": 1.9,
+      "end": 2.8,
+      "type": "word",
+      "speaker_id": "speaker_1",
+      "logprob": -0.156
+    }
+  ]
+}`),
+
+	"TestSpeechToTextMultichannel": []byte(`{
+  "transcripts": [
+    {
+      "language_code": "en",
+      "language_probability": 0.98,
+      "text": "Hello from channel 1",
+      "words": [
+        {
+          "text": "Hello",
+          "start": 0.0,
+          "end": 0.5,
+          "type": "word",
+          "channel_index": 0,
+          "logprob": -0.124
+        },
+        {
+          "text": "from",
+          "start": 0.5,
+          "end": 0.8,
+          "type": "word",
+          "channel_index": 0,
+          "logprob": -0.086
+        },
+        {
+          "text": "channel",
+          "start": 0.8,
+          "end": 1.2,
+          "type": "word",
+          "channel_index": 0,
+          "logprob": -0.054
+        },
+        {
+          "text": "1",
+          "start": 1.2,
+          "end": 1.4,
+          "type": "word",
+          "channel_index": 0,
+          "logprob": -0.032
+        }
+      ]
+    }
+  ]
+}`),
+
+	"TestSpeechToTextWebhook": []byte(`{
+  "request_id": "req_12345",
+  "message": "Transcription request submitted successfully. Results will be sent to your webhook."
+}`),
 }

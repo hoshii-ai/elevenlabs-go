@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/haguro/elevenlabs-go"
+	"github.com/ntauth/elevenlabs-go"
 )
 
 func ExampleClient_TextToSpeech() {
@@ -84,6 +84,113 @@ immediately, even if the buffer isn't full.`
 	}
 
 	log.Print("All done.")
+}
+
+func ExampleClient_SpeechToText() {
+	// Create a new client
+	client := elevenlabs.NewClient(context.Background(), "your-api-key", 30*time.Second)
+
+	// Open an audio file
+	audioFile, err := os.Open("/path/to/your/audio.mp3")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer audioFile.Close()
+
+	// Create a SpeechToTextRequest
+	sttReq := elevenlabs.SpeechToTextRequest{
+		ModelID:  "scribe_v1",
+		File:     audioFile,
+		FileName: "audio.mp3",
+		// Optional: specify language if known
+		LanguageCode: &[]string{"en"}[0],
+		// Optional: enable speaker diarization
+		Diarize: &[]bool{true}[0],
+		// Optional: set timestamps granularity
+		TimestampsGranularity: &[]string{"word"}[0],
+	}
+
+	// Call the SpeechToText method
+	result, err := client.SpeechToText(sttReq)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Handle the response based on type
+	switch resp := result.(type) {
+	case elevenlabs.SpeechToTextResponse:
+		fmt.Printf("Transcription: %s\n", resp.Text)
+		fmt.Printf("Language: %s (confidence: %.2f)\n", resp.LanguageCode, resp.LanguageProbability)
+
+		// Print word-level timestamps
+		for _, word := range resp.Words {
+			fmt.Printf("Word: %s [%.2fs - %.2fs]", word.Text, word.Start, word.End)
+			if word.SpeakerID != nil {
+				fmt.Printf(" (Speaker: %s)", *word.SpeakerID)
+			}
+			fmt.Println()
+		}
+	case elevenlabs.MultichannelSpeechToTextResponse:
+		for i, transcript := range resp.Transcripts {
+			fmt.Printf("Channel %d: %s\n", i+1, transcript.Text)
+		}
+	case elevenlabs.SpeechToTextWebhookResponse:
+		fmt.Printf("Webhook request ID: %s\n", resp.RequestID)
+		fmt.Printf("Message: %s\n", resp.Message)
+	}
+}
+
+func ExampleClient_SpeechToText_withCloudStorage() {
+	// Create a new client
+	client := elevenlabs.NewClient(context.Background(), "your-api-key", 30*time.Second)
+
+	// Create a SpeechToTextRequest with cloud storage URL
+	sttReq := elevenlabs.SpeechToTextRequest{
+		ModelID:         "scribe_v1",
+		CloudStorageURL: &[]string{"https://example.com/path/to/audio.mp3"}[0],
+		LanguageCode:    &[]string{"en"}[0],
+	}
+
+	// Call the SpeechToText method
+	result, err := client.SpeechToText(sttReq)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Handle the response
+	if resp, ok := result.(elevenlabs.SpeechToTextResponse); ok {
+		fmt.Printf("Transcription from cloud storage: %s\n", resp.Text)
+	}
+}
+
+func ExampleSpeechToText() {
+	// Set your API key for the default client
+	elevenlabs.SetAPIKey("your-api-key")
+
+	// Open an audio file
+	audioFile, err := os.Open("test.wav")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer audioFile.Close()
+
+	// Create a simple SpeechToTextRequest
+	sttReq := elevenlabs.SpeechToTextRequest{
+		ModelID: "scribe_v1",
+		File:    audioFile,
+		// FileName: "test.wav",
+	}
+
+	// Call the shorthand SpeechToText function
+	result, err := elevenlabs.SpeechToText(sttReq)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Handle the response
+	if resp, ok := result.(elevenlabs.SpeechToTextResponse); ok {
+		log.Printf("Transcription: %s", resp.Text)
+	}
 }
 
 func ExampleClient_GetHistory() {
